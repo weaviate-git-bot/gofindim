@@ -35,33 +35,37 @@ type GroupedImageWithDistance struct {
 	HammingDistance int `gorm:"-"`
 }
 
-func FindDuplicateGroups(db *gorm.DB, threshold int) ([]GroupedImageWithDistance, error) {
+// func FindDuplicateGroups(db *gorm.DB, threshold int) ([]GroupedImageWithDistance, error) {
+// 	var groups []GroupedImageWithDistance
+
+// 	err := db.Raw(`SELECT im1.id as image1_id, im2.id as image2_id, im1.filename as image1_filename, im2.filename as image2_filename, hamming_distance(im1.Hash, im2.Hash, im1.Filename, im2.Filename) as hamming_distance
+// 		FROM image_models im1, image_models im2
+// 		WHERE im1.id != im2.id AND hamming_distance(im1.Hash, im2.Hash, im1.Filename, im2.Filename) <= ?`,
+// 		threshold).Scan(&groups).Error
+
+// 	return groups, err
+// }
+
+func FindDuplicateGroups(db *gorm.DB, threshold int) (map[string][]string, error) {
 	var groups []GroupedImageWithDistance
+	mappedGroups := make(map[string][]string)
 
 	err := db.Raw(`SELECT im1.id as image1_id, im2.id as image2_id, im1.filename as image1_filename, im2.filename as image2_filename, hamming_distance(im1.Hash, im2.Hash, im1.Filename, im2.Filename) as hamming_distance
 		FROM image_models im1, image_models im2
-		WHERE im1.id != im2.id AND hamming_distance(im1.Hash, im2.Hash, im1.Filename, im2.Filename) <= ?`,
+		WHERE im1.id < im2.id AND hamming_distance(im1.Hash, im2.Hash, im1.Filename, im2.Filename) <= ?`,
 		threshold).Scan(&groups).Error
 
-	return groups, err
+	if err != nil {
+		return nil, err
+	}
+
+	for _, group := range groups {
+		mappedGroups[group.Image1Filename] = append(mappedGroups[group.Image1Filename], group.Image2Filename)
+		mappedGroups[group.Image2Filename] = append(mappedGroups[group.Image2Filename], group.Image1Filename)
+	}
+
+	return mappedGroups, nil
 }
-
-// type DuplicateGroup struct {
-// 	Image1          ImageModel
-// 	Image2          ImageModel
-// 	HammingDistance int
-// }
-
-// func FindDuplicateGroups(db *gorm.DB, threshold int) ([]DuplicateGroup, error) {
-// 	var duplicates []DuplicateGroup
-// 	err := db.Raw(`
-// 		SELECT a.*, b.*, hamming_distance(a.hash, b.hash, a.filename, b.filename) as hamming_distance
-// 		FROM image_models AS a
-// 		JOIN image_models AS b ON a.id != b.id
-// 		WHERE hamming_distance(a.hash, b.hash, a.filename, b.filename) <= ?`,
-// 		threshold).Scan(&duplicates).Error
-// 	return duplicates, err
-// }
 
 type ImageWithDistance struct {
 	ImageModel

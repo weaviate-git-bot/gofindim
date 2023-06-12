@@ -71,8 +71,8 @@ func Execute(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		for _, imagepair := range images {
-			fmt.Printf("%s %s\n", imagepair.Image1Filename, imagepair.Image2Filename)
+		for _, image := range images {
+			fmt.Printf("Group %v\n", image)
 
 		}
 		// fmt.Println("Scanning folder")
