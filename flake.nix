@@ -1,11 +1,12 @@
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-22.11";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     systems.url = "github:nix-systems/default";
     devenv.url = "github:cachix/devenv";
   };
 
-  outputs = { self, nixpkgs, devenv, systems, ... } @ inputs:
+  outputs = { self, nixpkgs, devenv, systems, nixpkgs-unstable, ... } @ inputs:
     let
       forEachSystem = nixpkgs.lib.genAttrs (import systems);
     in
@@ -14,6 +15,7 @@
         (system:
           let
             pkgs = nixpkgs.legacyPackages.${system};
+            unstablePkgs = nixpkgs-unstable.legacyPackages.${system};
           in
           {
             default = devenv.lib.mkShell {
@@ -21,16 +23,56 @@
               modules = [
                 {
                   # https://devenv.sh/reference/options/
-                  packages = with pkgs;[
+                  packages = with unstablePkgs;[
+                    go
                     gcc
                     sqlite
+                    opencv
+                    pkg-config
                   ];
+                  env = with unstablePkgs;{
+                    CGO_CFLAGS_ALLOW = "'-Xpreprocessor|-Xcompiler|-D__CORRECT_ISO_CPP_STRING_H_PROTO|-D_MT|-D_DLL'|gcc";
+                    CGO_CPPFLAGS = "-I${glibc.dev}/include";
+                    CGO_LDFLAGS = "${ lib.concatMapStrings (p: "-L${p}/lib") [ opencv glibc]}";
+                    # PKG_CONFIG_PATH = "${opencv}/lib/pkgconfig:$PKG_CONFIG_PATH";
+                    # LD_LIBRARY_PATH = "${opencv}/lib:$LD_LIBRARY_PATH";
+                  };
 
                   enterShell = ''
                   '';
                 }
               ];
             };
+            manual = with unstablePkgs;
+              let
+                packages = [
+                ];
+                lib-path = pkgs.lib.makeLibraryPath
+                  (packages ++ [
+                    glibc
+                  ]);
+              in
+
+              pkgs.mkShell {
+                packages = packages;
+                nativeBuildInputs = [
+                  glibc
+                  stdenv.cc.cc
+                  sqlite
+                  opencv
+                  pkg-config
+                  go
+                ];
+                buildInputs = [
+                  glibc
+                ];
+                # export CGO_CFLAGS_ALLOW="'-Xpreprocessor|-Xcompiler|-D__CORRECT_ISO_CPP_STRING_H_PROTO|-D_MT|-D_DLL'|gcc"
+                shellHook = ''
+                  export CGO_CPPFLAGS="-I${glibc.dev}/include"
+                  export LD_LIBRARY_PATH="${stdenv.cc.cc}/lib"
+                  export CGO_LDFLAGS="-L${lib-path} -L${glibc}/lib -L${opencv}/lib"
+                '';
+              };
           });
     };
 }

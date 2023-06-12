@@ -18,12 +18,13 @@ import (
 
 var (
 	// galleryURL  string
-	initialize  bool
-	scanFolder  string
-	imageFile   string
-	findFolder  string
-	similar     int
-	fpExtractor = &cobra.Command{
+	initialize      bool
+	scanFolder      string
+	imageFile       string
+	findFolder      string
+	similar         int
+	imagesToCompare []string
+	fpExtractor     = &cobra.Command{
 		Use:   "fap [string]",
 		Short: "Download a gallery",
 		Args:  cobra.ExactArgs(0),
@@ -50,60 +51,28 @@ func Execute(cmd *cobra.Command, args []string) error {
 	defer _db.Close()
 	fmt.Println("Connected to database. Executing command")
 
-	if similar > 0 {
-		fmt.Println("Finding similar images")
-		myImage, err := models.NewImageFileFromPath(imageFile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		imageM := myImage.ToImageModel()
-		images, err := models.FindSimilarImages(db, imageM, similar)
-		if err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("Found", len(images))
-		for _, image := range images {
-			fmt.Println(image.Filename, image.HammingDistance)
-		}
-		return nil
-	} else if findFolder != "" {
-		images, err := models.FindDuplicateGroups(db, 1)
+	if len(imagesToCompare) == 2 {
+		img1, err := models.NewImageFileFromPath(imagesToCompare[0])
 		if err != nil {
 			return err
 		}
-		for _, image := range images {
-			fmt.Printf("Group %v\n", image)
-
+		img2, err := models.NewImageFileFromPath(imagesToCompare[1])
+		if err != nil {
+			return err
 		}
-		// fmt.Println("Scanning folder")
-		// err := filepath.Walk(findFolder, func(path string, info os.FileInfo, err error) error {
-		// 	if err != nil {
-		// 		return err
-		// 	}
-		// 	if utils.IsImage(filepath.Ext(path)) {
-		// 		fmt.Println("Found image", path)
-		// 		image, err := models.NewImageFileFromPath(path)
-		// 		if err != nil {
-		// 			return err
-		// 		}
-		// 		imageM := image.ToImageModel()
-		// 		err = imageM.Insert(db)
-		// 		if err != nil {
-		// 			if err.Error() != "UNIQUE constraint failed: image_models.filename" {
-		// 				fmt.Println(err)
-		// 				return err
-		// 			} else {
-		// 				return nil
-		// 			}
-		// 		}
-		// 	}
-		// 	return nil
-		// })
-		// if err != nil {
-		// 	return err
-		// }
-		// return nil
+		distance, err := models.CompareImageOrb(img1, img2)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("Distance between %v and %v is %v\n", img1.Name, img2.Name, distance)
+		return nil
 
+	}
+
+	if similar > 0 && imageFile != "" {
+		findSimilarInDB(db, imageFile)
+	} else if similar >= 0 && findFolder == "" {
+		findDuplicatesInDB(db)
 	} else if scanFolder != "" {
 		fmt.Println("Scanning folder")
 		err := filepath.Walk(scanFolder, func(path string, info os.FileInfo, err error) error {
@@ -154,6 +123,7 @@ func main() {
 	fpExtractor.Flags().StringVarP(&scanFolder, "scan", "S", "", "Scan a directory for images")
 	fpExtractor.Flags().StringVarP(&imageFile, "image-file", "i", "", "Image file to hash")
 	fpExtractor.Flags().StringVarP(&findFolder, "find-folder", "F", "", "Find similar images in a folder")
+	fpExtractor.Flags().StringArrayVarP(&imagesToCompare, "compareImages", "C", []string{}, "Compare two images")
 	fpExtractor.Flags().IntVar(&similar, "similar", 0, "Image file to hash")
 	if err := fpExtractor.Execute(); err != nil {
 		fmt.Println(err)
@@ -187,6 +157,35 @@ func initDB(dbFile string) *gorm.DB {
 	}
 
 	return db
+}
+
+func findSimilarInDB(db *gorm.DB, imgPath string) error {
+	fmt.Println("Finding similar images")
+	myImage, err := models.NewImageFileFromPath(imgPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	imageM := myImage.ToImageModel()
+	images, err := models.FindSimilarImages(db, imageM, similar)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for _, image := range images {
+		fmt.Println(image.Filename, image.HammingDistance)
+	}
+	return nil
+}
+
+func findDuplicatesInDB(db *gorm.DB) error {
+	images, err := models.FindDuplicateGroups(db, similar)
+	if err != nil {
+		return err
+	}
+	for _, image := range images {
+		fmt.Printf("Group %v\n", image)
+
+	}
+	return nil
 }
 
 // func start() {
