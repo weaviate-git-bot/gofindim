@@ -1,4 +1,4 @@
-package models
+package data
 
 import (
 	_ "github.com/mattn/go-sqlite3" // import sqlite3 driver

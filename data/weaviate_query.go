@@ -1,4 +1,4 @@
-package models
+package data
 
 import (
 	"context"
@@ -70,61 +70,67 @@ func normalizeVector(vector []float32) []float32 {
 	return vector
 }
 
-// func matToFloat32Array(mat gocv.Mat) []float32 {
-// 	dataPtr, err := mat.DataPtrUint8()
-// 	if err != nil {
-// 		fmt.Errorf("Error getting data pointer: %v", err)
-// 	}
-// 	dataSize := mat.Total()
-
-// 	floats := (*[1 << 30]float32)(unsafe.Pointer(dataPtr))[:dataSize:dataSize]
-// 	data := make([]float32, dataSize)
-// 	copy(data, floats)
-
-// 	for i, value := range data {
-// 		if math.IsNaN(float64(value)) || math.IsInf(float64(value), 0) {
-// 			data[i] = 0
-// 		}
-// 	}
-
-//		return data
-//	}
-func SearchWeaviate(i *ImageFile) {
-	cfg := weaviate.Config{
-		Host:   "localhost:8080",
-		Scheme: "http",
-	}
-	client, err := weaviate.NewClient(cfg)
+func SearchWeaviate(i *ImageFile, certainty float32, limit int, client *weaviate.Client) error {
+	fieldToQuery := "path"
+	queryField := graphql.Field{Name: fieldToQuery}
+	vector, err := i.ToVector()
 	if err != nil {
-		panic(err)
+		return err
 	}
-	orb := gocv.NewORBWithParams(1000, 1.2, 8, 31, 0, 2, gocv.ORBScoreTypeHarris, 31, 20)
-	defer orb.Close()
-
-	_, descriptor := i.toKeypointsDescriptors(&orb)
-
-	sourceDescriptor := matToFloat32Array(descriptor)
-	fmt.Printf("%v\n", sourceDescriptor)
-	nearVector := client.GraphQL().NearVectorArgBuilder().WithVector(sourceDescriptor)
-	// floatsAsJSON := strings.Trim(strings.Join(strings.Fields(fmt.Sprint(sourceDescriptor)), ","), "[]")
-	imageDataField := graphql.Field{Name: "imageData"}
-	_additional := graphql.Field{
-		Name: "_additional", Fields: []graphql.Field{
-			{Name: "certainty"}, // only supported if distance==cosine
-			{Name: "distance"},  // always supported
-		},
-	}
+	nearVector := client.GraphQL().NearVectorArgBuilder().WithVector(vector).WithCertainty(certainty)
 	response, err := client.GraphQL().Get().
 		WithClassName("Image").
-		WithFields(imageDataField, _additional).
+		WithFields(queryField).
 		WithNearVector(nearVector).
+		WithLimit(limit).
 		Do(context.Background())
 	// Check error and handle response
 	if err != nil {
-		panic(err)
+		return err
 	}
-	match := response
-	fmt.Printf("%v\n", len(match.Data))
+	for _, outerMap := range response.Data {
+		for _, images := range outerMap.(map[string]interface{}) {
+			for _, image := range images.([]interface{}) {
+				fmt.Printf("%v\n", image.(map[string]interface{})[fieldToQuery])
+			}
+		}
+	}
+	return nil
+}
+
+type Image struct {
+	Name string
+}
+
+type Get struct {
+	Image []Image
+}
+
+type GraphQLResponse struct {
+	Data map[string]Get
+}
+
+func SearchWeaviateWithVector(vector []float32, certainty float32, limit int, client *weaviate.Client) error {
+	nameField := graphql.Field{Name: "path"}
+	nearVector := client.GraphQL().NearVectorArgBuilder().WithVector(vector).WithCertainty(certainty)
+	response, err := client.GraphQL().Get().
+		WithClassName("Image").
+		WithFields(nameField).
+		WithNearVector(nearVector).
+		WithLimit(limit).
+		Do(context.Background())
+	// Check error and handle response
+	if err != nil {
+		return err
+	}
+	for _, outerMap := range response.Data {
+		for _, images := range outerMap.(map[string]interface{}) {
+			for _, image := range images.([]interface{}) {
+				fmt.Printf("%v\n", image.(map[string]interface{})["path"])
+			}
+		}
+	}
+	return nil
 
 }
 func SearchWeaviateObj(i *ImageFile) {

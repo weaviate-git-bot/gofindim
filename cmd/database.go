@@ -1,14 +1,21 @@
 package cmd
 
 import (
-	"_x3/sqldb/models"
 	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 )
 
 func init() {
+	dbCmd.Flags().StringVarP(&dbName, "", "n", "", "Database name")
+	dbCmd.Flags().BoolVarP(&dbListCollections, "list-collections", "l", false, "List collections")
+	dbCmd.Flags().BoolVarP(&dbListDatabases, "list-databases", "L", false, "List databases")
+	dbCmd.Flags().BoolVarP(&dbCreateIndex, "create-index", "I", false, "Create index")
+	dbCmd.Flags().StringVarP(&dbDropCollection, "drop-collection", "D", "", "Drop a collection")
+	dbCmd.Flags().StringVarP(&dbCreateCollection, "create-collection", "c", "", "Create a collection")
+	dbCmd.Flags().StringVarP(&dbCreateDatabase, "create-database", "C", "", "Create a database")
 	RootCmd.AddCommand(dbCmd)
 }
 
@@ -31,59 +38,19 @@ var (
 
 func ExecuteDatabase(cmd *cobra.Command, args []string) error {
 	var err error
-	mClient, err := models.GetMilvusClient()
+	cfg := weaviate.Config{
+		Host:   "localhost:8080",
+		Scheme: "http",
+	}
+	client, err := weaviate.NewClient(cfg)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	if dbCreateDatabase != "" {
-		err = models.CreateDatabase(mClient)
-		if err != nil {
-			return err
-		}
-		fmt.Println("Database created")
-		return nil
-	}
-	if dbName == "" {
-		return fmt.Errorf("Database name is required")
-	}
-	err = mClient.UsingDatabase(context.Background(), dbName)
-	if err != nil {
-		return err
-	}
-	switch {
-	case dbDropCollection != "":
-		err = mClient.DropCollection(context.Background(), "Images")
-		if err != nil {
-			return err
-		}
-		return nil
-	case dbCreateIndex:
-		err = models.CreateIndex(mClient)
-		if err != nil {
-			return err
-		}
-		fmt.Println("Index created")
-		return nil
+	if dbDropCollection != "" {
 
-	case dbListDatabases:
-		res, err := mClient.ListDatabases(context.Background())
-		if err != nil {
-			return err
-		}
-		fmt.Println(res)
-		return nil
-	case dbCreateCollection != "":
-		err = models.CreateCollection(mClient)
-		if err != nil {
-			return err
-		}
-		return nil
-	case dbListCollections:
-		err = models.ViewCollections(mClient)
-		if err != nil {
-			return err
-		}
-		return nil
+		client.Schema().ClassDeleter().WithClassName(dbDropCollection).Do(context.Background())
+		fmt.Printf("Dropped collection %v\n", dbDropCollection)
+
 	}
 	return nil
 }

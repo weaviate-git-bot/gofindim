@@ -1,10 +1,11 @@
 package cmd
 
 import (
-	"_x3/sqldb/ai"
+	"_x3/sqldb/data"
+	"_x3/sqldb/math"
 	"fmt"
-	"image"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -25,19 +26,37 @@ var (
 )
 
 func ExecuteVectorize(cmd *cobra.Command, args []string) error {
-	imgFile, err := os.Open(args[0])
-	if err != nil {
-		return err
+	_, err := os.Stat(args[0])
+	if err == nil {
+		if len(args) == 1 {
+			imageFile, err := data.NewImageFileFromPath(args[0])
+			if err != nil {
+				return err
+			}
+			vector, err := data.VectorizeImage(imageFile)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("%v\v", vector)
+			return nil
+		} else {
+			imageFile, err := data.NewImageFileFromPath(args[0])
+			if err != nil {
+				return err
+			}
+			textVec, imgVec, err := data.VectorizeTextAndImage(strings.Join(args[1:], " "), imageFile)
+			similarities := math.CosineSimilarity(textVec, imgVec)
+			fmt.Printf("Similarity between text and image is %v\n", similarities)
+			return nil
+		}
+	} else {
+		vector, err := data.VectorizeText(strings.Join(args, " "))
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%v", vector)
 	}
-	defer imgFile.Close()
-	img, _, err := image.Decode(imgFile)
-	if err != nil {
-		return err
-	}
-	vector, err := ai.MakeImageEmbedding(img)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("Vector: %v\n", vector)
+
 	return nil
+
 }
