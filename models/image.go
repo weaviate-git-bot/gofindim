@@ -7,7 +7,8 @@ import (
 type ImageModel struct {
 	ID       uint   `gorm:"primaryKey"`
 	Filename string `gorm:"unique"`
-	Hash     string `gorm:"index"`
+	Feature  []byte
+	Hash     string
 	Rating   int8
 	Tags     []Tag `gorm:"many2many:image_tags;"`
 }

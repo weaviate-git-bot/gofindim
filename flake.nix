@@ -16,6 +16,13 @@
           let
             pkgs = nixpkgs.legacyPackages.${system};
             unstablePkgs = nixpkgs-unstable.legacyPackages.${system};
+            fullUnstablePkgs = import nixpkgs-unstable {
+              inherit system;
+              config.allowUnfree = true;
+            };
+
+            faiss_c = unstablePkgs.callPackage ./faiss_c_api.nix { cudaSupport = false; };
+
           in
           {
             default = devenv.lib.mkShell {
@@ -25,7 +32,9 @@
                   # https://devenv.sh/reference/options/
                   packages = with unstablePkgs;[
                     go
-                    gcc
+                    gnumake
+                    cargo
+                    stdenv.cc
                     sqlite
                     opencv
                     pkg-config
@@ -33,9 +42,11 @@
                   env = with unstablePkgs;{
                     CGO_CFLAGS_ALLOW = "'-Xpreprocessor|-Xcompiler|-D__CORRECT_ISO_CPP_STRING_H_PROTO|-D_MT|-D_DLL'|gcc";
                     CGO_CPPFLAGS = "-I${glibc.dev}/include";
-                    CGO_LDFLAGS = "${ lib.concatMapStrings (p: "-L${p}/lib") [ opencv glibc]}";
-                    # PKG_CONFIG_PATH = "${opencv}/lib/pkgconfig:$PKG_CONFIG_PATH";
-                    # LD_LIBRARY_PATH = "${opencv}/lib:$LD_LIBRARY_PATH";
+                    CGO_CFLAGS = "-I${faiss_c}/include";
+                    CGO_LDFLAGS = "${ lib.concatMapStringsSep " " (p: "-L${p}/lib") [ opencv glib  faiss_c blas]}" + " -lfaiss -lgomp -lblas -ltokenizers -L/home/agentx3/Apps/Go/sqldb/lib";
+                    CGO_ENABLED = "1";
+                    PKG_CONFIG_PATH = "${opencv}/lib/pkgconfig:$PKG_CONFIG_PATH";
+                    LD_LIBRARY_PATH = "${ faiss_c}/lib:${opencv}/lib}";
                   };
 
                   enterShell = ''
@@ -62,6 +73,7 @@
                   opencv
                   pkg-config
                   go
+                  faiss
                 ];
                 buildInputs = [
                   glibc
@@ -70,7 +82,7 @@
                 shellHook = ''
                   export CGO_CPPFLAGS="-I${glibc.dev}/include"
                   export LD_LIBRARY_PATH="${stdenv.cc.cc}/lib"
-                  export CGO_LDFLAGS="-L${lib-path} -L${glibc}/lib -L${opencv}/lib"
+                  export CGO_LDFLAGS="-L${lib-path} -L${glibc}/lib -L${opencv}/lib -L${faiss}/lib"
                 '';
               };
           });
