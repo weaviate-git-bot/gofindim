@@ -25,6 +25,7 @@ require (
 	github.com/cockroachdb/logtags v0.0.0-20211118104740-dabe8e521a4f // indirect
 	github.com/cockroachdb/redact v1.1.3 // indirect
 	github.com/daulet/tokenizers v0.4.3 // indirect
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/getsentry/sentry-go v0.12.0 // indirect
 	github.com/go-openapi/analysis v0.21.2 // indirect
 	github.com/go-openapi/errors v0.20.3 // indirect
@@ -71,6 +72,7 @@ require (
 	github.com/xtgo/set v1.0.0 // indirect
 	go.mongodb.org/mongo-driver v1.11.3 // indirect
 	go4.org/unsafe/assume-no-moving-gc v0.0.0-20230525183740-e7c30c78aeb2 // indirect
+	golang.org/x/image v0.6.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/oauth2 v0.0.0-20220822191816-0ebed06d0094 // indirect
 	golang.org/x/sys v0.6.0 // indirect
