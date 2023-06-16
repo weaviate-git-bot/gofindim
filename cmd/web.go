@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"_x3/sqldb/web"
+	"github.com/agentx3/gofindim/web"
 
 	"github.com/spf13/cobra"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"

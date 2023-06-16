@@ -1,7 +1,7 @@
 package main
 
 import (
-	"_x3/sqldb/cmd"
+	"github.com/agentx3/gofindim/cmd"
 	"fmt"
 	"os"
 )

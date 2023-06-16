@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"_x3/sqldb/data"
-	"_x3/sqldb/utils"
+	"github.com/agentx3/gofindim/data"
+	"github.com/agentx3/gofindim/utils"
 	"encoding/json"
 	"fmt"
 	"strings"

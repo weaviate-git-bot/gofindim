@@ -1,4 +1,4 @@
-module _x3/sqldb
+module github.com/agentx3/gofindim
 
 go 1.19
 

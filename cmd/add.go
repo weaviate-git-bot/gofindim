@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	models "_x3/sqldb/data"
-	"_x3/sqldb/utils"
+	models "github.com/agentx3/gofindim/data"
+	"github.com/agentx3/gofindim/utils"
 	"fmt"
 	"io/fs"
 	"path/filepath"
