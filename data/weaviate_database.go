@@ -10,16 +10,17 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 )
 
-type ImageDataNode struct {
-	Filename string `json:"filename"`
-	Rating   int    `json:"rating"`
+type ImageNode struct {
+	Name   string `json:"name,omitempty"`
+	Rating int    `json:"rating,omitempty"`
+	Path   string `json:"path,omitempty"`
 }
 
-type ImageNode struct {
-	Coordinates string        `json:"coordinates"`
-	Descriptor  []float64     `json:"descriptor"`
-	Image       ImageDataNode `json:"image"`
-}
+// type ImageNode struct {
+// 	Coordinates string        `json:"coordinates"`
+// 	Descriptor  []float64     `json:"descriptor"`
+// 	Image       ImageDataNode `json:"image"`
+// }
 
 func generateUID() uuid.UUID {
 	// Generate a UUID
@@ -52,29 +53,19 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 	if err != nil {
 		return err
 	}
-	imageInterface := map[string]interface{}{
-		"name":      img.Name,
-		"path":      img.Path,
-		"embedding": vector,
-	}
-	// imageDataInterface := map[string]interface{}{
-	// 	"filename": img.Name,
-	// 	"rating":   5, // sample rating
-	// }
 
 	err = client.Data().Validator().
 		WithID(imgUid.String()).
 		WithClassName("Image").
-		WithProperties(imageInterface).
+		WithProperties(img.toInterface()).
 		Do(context.Background())
 	if err != nil {
-		fmt.Printf("There's been an Error: %v\n", err)
-		return err
+		return fmt.Errorf("Couldn't valid image during insertion.", err)
 	}
 	_, err = client.Data().Creator().
 		WithClassName("Image").
 		WithID(imgUid.String()).
-		WithProperties(imageInterface).
+		WithProperties(img.toInterface()).
 		WithVector(vector).
 		Do(context.Background())
 	if err != nil {
@@ -106,12 +97,10 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 		}
 		objects = append(objects, &object)
 	}
-
-	batcher := client.Batch().ObjectsBatcher()
-	for _, object := range objects {
-		batcher.WithObject(object)
-	}
-	_, err = batcher.Do(context.Background())
+	_, err = client.Batch().
+		ObjectsBatcher().
+		WithObjects(objects...).
+		Do(context.Background())
 	if err != nil {
 		return fmt.Errorf("error inserting batch: %v", err)
 	}

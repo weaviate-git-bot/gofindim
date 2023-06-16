@@ -2,13 +2,10 @@ package cmd
 
 import (
 	"_x3/sqldb/data"
-	"context"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/spf13/cobra"
-	"gocv.io/x/gocv"
 )
 
 var (
@@ -32,51 +29,6 @@ var (
 func Execute(cmd *cobra.Command, args []string) error {
 
 	if initialize {
-		mClient, err := data.GetMilvusClient()
-		if err != nil {
-			return err
-		}
-		err = data.InitMilvus(mClient)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	if searchFile != "" {
-		orb := gocv.NewORBWithParams(128, 1.2, 8, 31, 0, 2, gocv.ORBScoreTypeHarris, 31, 20)
-		img, err := data.NewImageEntityFromFile(searchFile, &orb)
-		if err != nil {
-			log.Fatal(err)
-		}
-		mClient, err := data.GetMilvusClient()
-		err = mClient.UsingDatabase(context.Background(), "Test")
-		if err != nil {
-			return err
-		}
-		err = data.Search(mClient, img)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-	if len(imagesToCompare) == 1 {
-		mClient, err := data.GetMilvusClient()
-		if err != nil {
-			return err
-		}
-		orb := gocv.NewORBWithParams(128, 1.2, 8, 31, 0, 2, gocv.ORBScoreTypeHarris, 31, 20)
-
-		defer orb.Close()
-		img, err := data.NewImageEntityFromFile(imagesToCompare[0], &orb)
-		if err != nil {
-			return err
-		}
-		err = mClient.UsingDatabase(context.Background(), "Test")
-		err = img.Insert(mClient)
-		if err != nil {
-			return err
-		}
-		return nil
 	}
 	if len(imagesToCompare) == 2 {
 		img1, err := data.NewImageFileFromPath(imagesToCompare[0])

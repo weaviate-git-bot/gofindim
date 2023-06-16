@@ -29,6 +29,19 @@ func (m *ImageFile) ToWeaviateImageData() map[string]interface{} {
 	return imageDataInterface
 }
 
+func (i *ImageFile) toInterface() map[string]interface{} {
+	vector, err := i.ToVector()
+	if err != nil {
+		log.Println("Error converting vector during conversion to interface")
+	}
+	return map[string]interface{}{
+		"name":      i.Name,
+		"path":      i.Path,
+		"embedding": vector,
+	}
+
+}
+
 func (m *ImageFile) PerceptionHash() (string, error) {
 	hash, err := goimagehash.PerceptionHash(m.Image)
 	if err != nil {
