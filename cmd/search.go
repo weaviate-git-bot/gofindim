@@ -1,11 +1,12 @@
 package cmd
 
 import (
-	"github.com/agentx3/gofindim/data"
-	"github.com/agentx3/gofindim/utils"
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/agentx3/gofindim/data"
+	"github.com/agentx3/gofindim/utils"
 
 	"github.com/spf13/cobra"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
@@ -15,6 +16,7 @@ func init() {
 	searchCmd.Flags().Float32VarP(&searchThreshold, "threshold", "t", 0.5, "Threshold for search")
 	searchCmd.Flags().IntVarP(&searchLimit, "limit", "l", 5, "Limit for search")
 	searchCmd.Flags().StringArrayVarP(&searchFields, "field", "f", []string{"name"}, "Fields to grab")
+	searchCmd.Flags().BoolVarP(&searchID, "uuid", "i", false, "Indicates that the search is for a UUID")
 	RootCmd.AddCommand(searchCmd)
 }
 
@@ -22,6 +24,7 @@ var (
 	searchFiles     []string
 	searchThreshold float32
 	searchFields    []string
+	searchID        bool
 	searchLimit     int
 	searchCmd       = &cobra.Command{
 		Use:   "search",
@@ -51,7 +54,12 @@ func ExecuteSearch(cmd *cobra.Command, args []string) error {
 func searchArgs(args []string, client *weaviate.Client) error {
 	var err error
 	var results *[]data.ImageNode
-	if utils.IsImage(args[0]) {
+	if searchID {
+		results, err = searchUUID(args[0], client)
+		if err != nil {
+			return err
+		}
+	} else if utils.IsImage(args[0]) {
 		img, err := data.NewImageFileFromPath(args[0])
 		if err != nil {
 			return err
@@ -69,6 +77,14 @@ func searchArgs(args []string, client *weaviate.Client) error {
 	}
 	printResults(*results)
 	return nil
+}
+
+func searchUUID(id string, client *weaviate.Client) (*[]data.ImageNode, error) {
+	results, err := data.SearchWeaviateWithUUID(id, searchThreshold, searchLimit, searchFields, client)
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func searchImage(img *data.ImageFile, client *weaviate.Client) (*[]data.ImageNode, error) {

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{.Title}}</title>
+  <link rel="stylesheet" href="static/css/style.css">
+   <script type="text/javascript">
+    function validateForm(event) {
+      const textInput = document.forms["SimilarForm"]["text_input"].value;
+      const imageInput = document.forms["SimilarForm"]["image_input"].value;
+      const urlInput = document.forms["SimilarForm"]["url_input"].value;
+
+      if (textInput === "" && imageInput === "" && urlInput === "") {
+        alert("Please enter text or upload a file");
+        event.preventDefault();
+      }
+    }
+  </script>
+</head>
+<body>
+    {{template "header" .}}
+  <h1>List of Images:</h1>
+    <div class="similar-image">
+    {{range .Images}}
+        <img class="similar-image text-search" src="{{.Path}}" alt=""/>
+    {{end}}
+    </div>
+    <div class="flex-box">
+   <h3>Submit Text or Image</h3>
+    <form class="SimilarForm" name="SimilarForm" action="/similar" method="POST" enctype="multipart/form-data" onsubmit="validateForm(event)">
+      <label for="text_input">
+        Text:
+        <input type="text" name="text_input"><br>
+      </label>
+      <label for="url_input">URL:
+        <input type="text" name="url_input"><br>
+      </label>
+      <label for="file_input">File:
+        <input type="file" name="image_input"><br>
+      </label>
+      <input type="submit" value="Submit">
+    </form>
+    </div>
+    {{template "footer" .}}
+</body>
+</html>

@@ -1,10 +1,15 @@
 package data
 
 import (
+	"bytes"
 	"encoding/base64"
+	"fmt"
 	"image"
+	"io"
 	"io/ioutil"
 	"log"
+	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 
@@ -68,7 +73,7 @@ func NewImageFileFromPath(path string) (*ImageFile, error) {
 		return nil, err
 	}
 	defer file.Close()
-	path, err = filepath.Abs(path)
+	// path, err = filepath.Abs(path)
 	filename := filepath.Base(file.Name())
 	_img, format, err := image.Decode(file)
 	if err != nil {
@@ -77,6 +82,59 @@ func NewImageFileFromPath(path string) (*ImageFile, error) {
 	raw, err := ioutil.ReadFile(path)
 	b64 := base64.StdEncoding.EncodeToString(raw)
 	myImg := &ImageFile{Image: _img, Format: format, Name: filename, Path: path, Base64: b64}
+	return myImg, nil
+}
+
+func NewImageFileFromFormFile(img multipart.File, name string) *ImageFile {
+	_img, format, err := image.Decode(img)
+	img.Seek(0, io.SeekStart)
+	if err != nil {
+		log.Fatal(err)
+	}
+	println("format", format)
+	img.Seek(0, io.SeekStart)
+	raw, err := io.ReadAll(img)
+	if err != nil {
+		log.Fatal(err)
+	}
+	println("About to encode")
+	b64 := base64.StdEncoding.EncodeToString(raw)
+	if len(b64) == 0 {
+		panic("b64 is empty")
+	}
+	myImg := &ImageFile{Image: _img, Format: format, Name: name, Base64: b64}
+	return myImg
+}
+
+func NewImageFileFromURL(url string, name string) (*ImageFile, error) {
+	response, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error fetching image:", err)
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	// Check if the request was successful (status code 200)
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("bad status: %s", response.Status)
+	}
+
+	// Read the response data (image content)
+	imageData, err := ioutil.ReadAll(response.Body)
+	imageReader := bytes.NewReader(imageData)
+	_img, format, err := image.Decode(imageReader)
+
+	imageReader.Seek(0, io.SeekStart)
+	raw, err := io.ReadAll(imageReader)
+	if err != nil {
+		return nil, err
+	}
+	println("About to encode")
+	b64 := base64.StdEncoding.EncodeToString(raw)
+	if len(b64) == 0 {
+		panic("b64 is empty")
+	}
+	myImg := &ImageFile{Image: _img, Format: format, Name: name, Base64: b64}
 	return myImg, nil
 }
 

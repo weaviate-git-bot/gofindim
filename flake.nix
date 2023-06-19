@@ -29,6 +29,7 @@
                     gnumake
                     stdenv.cc
                     pkg-config
+                    air
                   ];
                   env = with unstablePkgs;{
                     CGO_CFLAGS_ALLOW = "'-Xpreprocessor|-Xcompiler|-D__CORRECT_ISO_CPP_STRING_H_PROTO|-D_MT|-D_DLL'|gcc";

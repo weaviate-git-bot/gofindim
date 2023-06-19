@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>{{.Title}}</title>
+</head>
+<body>
+  <h1>List of Names:</h1>
+  <ul>
+  {{range .Names}}
+    <li>{{.}}</li>
+  {{end}}
+  </ul>
+   <h1>Submit Text or Image</h1>
+    <form action="/similar" method="POST" enctype="multipart/form-data">
+      <input type="text" name="text_input"><br>
+      <input type="file" name="image_input"><br>
+      <input type="submit" value="Submit">
+    </form>
+</body>
+</html>

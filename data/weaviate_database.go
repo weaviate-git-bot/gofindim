@@ -12,8 +12,13 @@ import (
 
 type ImageNode struct {
 	Name   string `json:"name,omitempty"`
+	Id     string `json:"id,omitempty"`
 	Rating int    `json:"rating,omitempty"`
 	Path   string `json:"path,omitempty"`
+	// This should almost always be a float32, but weaviate returns it as a float64
+	// so we have to use a float64 here. It's important to note that this should
+	// only be used to hold values for reading from the database.
+	Distance float64 `json:"distance,omitempty"`
 }
 
 // type ImageNode struct {
@@ -82,6 +87,7 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 
 	var objects = make([]*models.Object, 0, len(img))
 	for _, image := range img {
+		imgUid := generateUID()
 		vector, err := image.ToVector()
 		if err != nil {
 			return fmt.Errorf("error converting image to vector: %v", err)
@@ -95,8 +101,18 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 			},
 			Vector: vector,
 		}
+		err = client.Data().Validator().
+			WithID(imgUid.String()).
+			WithClassName("Image").
+			WithProperties(image.toInterface()).
+			Do(context.Background())
+		if err != nil {
+			fmt.Printf("Couldn't valid image during insertion of %v : %v", image.Path, err)
+			continue
+		}
 		objects = append(objects, &object)
 	}
+	println("objects: ", len(objects))
 	_, err = client.Batch().
 		ObjectsBatcher().
 		WithObjects(objects...).
