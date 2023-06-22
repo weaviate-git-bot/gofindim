@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 
 	"github.com/corona10/goimagehash"
-	"gocv.io/x/gocv"
 )
 
 type ImageFile struct {
@@ -145,24 +144,4 @@ func (i *ImageFile) ToVector() ([]float32, error) {
 	}
 	i.Embedding = vector
 	return vector, nil
-}
-
-func (i *ImageFile) toImgMat() *gocv.Mat {
-	imgMat := gocv.IMRead(i.Path, gocv.IMReadColor)
-	return &imgMat
-}
-
-func (i *ImageFile) toMat() *gocv.Mat {
-	imgMat := i.toImgMat()
-	gray := gocv.NewMat()
-	defer gray.Close()
-	gocv.CvtColor(*imgMat, &gray, gocv.ColorBGRToGray)
-	return imgMat
-}
-
-func (i *ImageFile) toKeypointsDescriptors(orb *gocv.ORB) ([]gocv.KeyPoint, gocv.Mat) {
-	imgMat := i.toMat()
-	defer imgMat.Close()
-	kp, desc := orb.DetectAndCompute(*imgMat, gocv.NewMat())
-	return kp, desc
 }
