@@ -2,54 +2,94 @@ package web
 
 import (
 	"context"
+	"embed"
+	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/agentx3/gofindim/web/routes"
-	"github.com/gin-gonic/gin"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 )
 
-func Start(weaviateClient *weaviate.Client) {
-	r := gin.Default()
-	exePath, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	dir := filepath.Dir(exePath)
-	r.LoadHTMLGlob(filepath.Join(dir, "web", "templates", "*.html"))
-	r.LoadHTMLGlob(filepath.Join(dir, "web", "templates", "components", "*.html"))
-	r.Use(func(c *gin.Context) {
-		// Inject the Weaviate client into the context
-		c.Set("weaviateClient", weaviateClient)
-		// Continue processing the request
-		c.Next()
-	})
-	r.Static("/static", filepath.Join(dir, "static"))
-	r.Static("/thumbnails", filepath.Join("mnt", "ramdisk", "thumbnails"))
-	// r.Static("/static", filepath.Join(dir, "web", "static", "css"))
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-	api := r.Group("/api")
-	api.Any("similar", routes.SimilarApiHandler)
-	api.Any("files", routes.BrowseApiHandler)
-	r.NoRoute(func(c *gin.Context) {
-		c.File(filepath.Join(dir, "static", "react", "index.html"))
-	})
-	// r.GET("/", func(c *gin.Context) {
-	// 	routes.RootHandler(c)
+//go:embed react/*
+var reactFiles embed.FS
+
+func StartChi(weaviateClient *weaviate.Client) {
+	r := chi.NewRouter()
+
+	// A good base middleware stack
+	// r.Use(middleware.RequestID)
+	// r.Use(middleware.RealIP)
+	r.Use(middleware.Logger)
+	r.Use(middleware.Recoverer)
+	r.Use(CreateWeaviateMiddleWare(weaviateClient))
+
+	// Set a timeout value on the request context (ctx), that will signal
+	// through ctx.Done() that the request has timed out and further
+	// processing should be stopped.
+	r.Use(middleware.Timeout(60 * time.Second))
+
+	fileServer := http.FileServer(http.FS(reactFiles))
+	// r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+	// 	fileServer.ServeHTTP(w, r)
+	// })
+	apiRouter := chi.NewRouter()
+	apiRouter.Use(CreateWeaviateMiddleWare(weaviateClient))
+	apiRouter.Use(middleware.Logger)
+	apiRouter.HandleFunc("/similar", routes.SimilarHandler)
+	apiRouter.HandleFunc("/files", routes.BrowseApiHandler)
+	apiRouter.HandleFunc("/scan", routes.ScanHandler)
+
+	r.Mount("/api", apiRouter)
+	// r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+	// 	http.ServeFile(w, r, "static/react")
+	// 	// http.FileServer(http.Dir("static/react")).ServeHTTP(w, r)
+	// })
+	r.Handle("/static/react/*", http.StripPrefix("/static/react", fileServer))
+	// r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+	// 	rctx := chi.RouteContext(r.Context())
+	// 	serverRoutePrefix := strings.TrimSuffix(rctx.RoutePattern(), "/*")
+	// 	fs := http.StripPrefix(serverRoutePrefix, http.FileServer())
+	// 	fs.ServeHTTP(w, r)
+	// })
+	FileServer(r)
+	// fmt.Println(r.URL.Path, r.RequestURI)
+	// r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
+	// path := "static/react" + r.RequestURI
+	// ext := filepath.Ext(r.RequestURI)
+
+	// if _, err := os.Stat(path); os.IsNotExist(err) || ext == "" {
+	// 	http.ServeFile(w, r, "static/react/index.html")
+	// } else {
+	// 	fileServer.ServeHTTP(w, r)
+	// }
 	// })
 
-	r.Run(":8888") // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	http.ListenAndServe(":8888", r)
 }
 
+// FileServer is serving static files.
+func FileServer(router *chi.Mux) {
+	root := "/"
+	fs := http.FileServer(http.Dir(root))
+	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println(r.RequestURI)
+		// decodedURI, err := url.PathUnescape(r.RequestURI)
+		// if err != nil {
+		// 	http.Error(w, "Invalid path", http.StatusBadRequest)
+		// 	return
+		// }
+		// if _, err := os.Stat(root + decodedURI); os.IsNotExist(err) {
+		// 	http.StripPrefix(decodedURI, fs).ServeHTTP(w, r)
+		// } else if decodedURI == "bundle.js" {
+		// http.StripPrefix(decodedURI, fs).ServeHTTP(w, r)
+		// } else {
+		fs.ServeHTTP(w, r)
+		// }
+	})
+}
 func CreateWeaviateMiddleWare(weaviateClient *weaviate.Client) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -73,48 +113,4 @@ func WeaviateMiddleWare(next http.Handler) http.Handler {
 		// will be accessible from this point forward.
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-}
-func StartChi(weaviateClient *weaviate.Client) {
-	r := chi.NewRouter()
-
-	// A good base middleware stack
-	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
-	r.Use(CreateWeaviateMiddleWare(weaviateClient))
-
-	// Set a timeout value on the request context (ctx), that will signal
-	// through ctx.Done() that the request has timed out and further
-	// processing should be stopped.
-	r.Use(middleware.Timeout(60 * time.Second))
-
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("hi"))
-	})
-
-	// RESTy routes for "articles" resource
-	// r.Route("/articles", func(r chi.Router) {
-	// 	r.With(paginate).Get("/", listArticles)                           // GET /articles
-	// 	r.With(paginate).Get("/{month}-{day}-{year}", listArticlesByDate) // GET /articles/01-16-2017
-
-	// 	r.Post("/", createArticle)       // POST /articles
-	// 	r.Get("/search", searchArticles) // GET /articles/search
-
-	// 	// Regexp url parameters:
-	// 	r.Get("/{articleSlug:[a-z-]+}", getArticleBySlug) // GET /articles/home-is-toronto
-
-	// 	// Subrouters:
-	// 	r.Route("/{articleID}", func(r chi.Router) {
-	// 		r.Use(ArticleCtx)
-	// 		r.Get("/", getArticle)       // GET /articles/123
-	// 		r.Put("/", updateArticle)    // PUT /articles/123
-	// 		r.Delete("/", deleteArticle) // DELETE /articles/123
-	// 	})
-	// })
-
-	// // Mount the admin sub-router
-	// r.Mount("/admin", adminRouter())
-
-	http.ListenAndServe(":9999", r)
 }

@@ -3,8 +3,13 @@ package data
 import (
 	"context"
 	"fmt"
-	"log"
+	"io/fs"
+	"path/filepath"
+	"strings"
+	"sync"
 
+	"github.com/agentx3/gofindim/utils"
+	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 	"github.com/weaviate/weaviate/entities/models"
@@ -51,7 +56,10 @@ func CreateImageClass(client *weaviate.Client) error {
 func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 	var err error
 	// dataUid := generateUID()
-	imgUid := generateUID()
+	imgUid, err := FileToUUID(img.Path)
+	if err != nil {
+		return err
+	}
 	fmt.Println("imgUid: ", imgUid)
 
 	vector, err := img.ToVector()
@@ -60,7 +68,7 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 	}
 
 	err = client.Data().Validator().
-		WithID(imgUid.String()).
+		WithID(imgUid).
 		WithClassName("Image").
 		WithProperties(img.toInterface()).
 		Do(context.Background())
@@ -69,12 +77,12 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 	}
 	_, err = client.Data().Creator().
 		WithClassName("Image").
-		WithID(imgUid.String()).
+		WithID(imgUid).
 		WithProperties(img.toInterface()).
 		WithVector(vector).
 		Do(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("Couldn't insert image into database.", err)
 	}
 	fmt.Printf("Created \n")
 	return err
@@ -87,13 +95,17 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 
 	var objects = make([]*models.Object, 0, len(img))
 	for _, image := range img {
-		imgUid := generateUID()
 		vector, err := image.ToVector()
 		if err != nil {
 			return fmt.Errorf("error converting image to vector: %v", err)
 		}
+		uuid, err := FileToUUID(image.Path)
+		if err != nil {
+			return err
+		}
 		object := models.Object{
 			Class: "Image",
+			ID:    strfmt.UUID(uuid),
 			Properties: map[string]interface{}{
 				"name":      image.Name,
 				"path":      image.Path,
@@ -102,7 +114,7 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 			Vector: vector,
 		}
 		err = client.Data().Validator().
-			WithID(imgUid.String()).
+			WithID(uuid).
 			WithClassName("Image").
 			WithProperties(image.toInterface()).
 			Do(context.Background())
@@ -122,4 +134,62 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 	}
 	fmt.Printf("Created \n")
 	return err
+}
+
+func InsertDirectoryIntoWeaviate(path string, client *weaviate.Client) error {
+	var err error
+	imagePaths := []string{}
+	// images := []*models.ImageFile{}
+
+	filepath.WalkDir(path, func(path string, d fs.DirEntry, err error) error {
+		if strings.HasPrefix(d.Name(), ".") && d.IsDir() {
+			fmt.Println("Skipping directory", path)
+			return filepath.SkipDir
+		}
+		if utils.IsImage(path) {
+			imagePaths = append(imagePaths, path)
+			// img, err := models.NewImageFileFromPath(path)
+			// if err != nil {
+			// 	return fmt.Errorf("error creating image file from path: %w", err)
+			// }
+			// println("Adding", len(images), "images")
+			// images = append(images, img)
+		}
+		return nil
+	})
+	batchSize := 50
+	waitGroup := sync.WaitGroup{}
+
+	for i := 0; i < len(imagePaths); i += batchSize {
+		end := i + batchSize
+		imageBatch := []*ImageFile{}
+		if end > len(imagePaths) {
+			end = len(imagePaths)
+		}
+		batch := imagePaths[i:end]
+		for _, img := range batch {
+			imageFile, err := NewImageFileFromPath(img)
+			if err != nil {
+				fmt.Printf("error creating image file from path %v: %v", img, err)
+				continue
+			}
+			imageBatch = append(imageBatch, imageFile)
+		}
+		waitGroup.Add(1)
+		go func(wg *sync.WaitGroup) {
+			defer wg.Done()
+			err = InsertMultipleIntoWeaviate(imageBatch, client)
+			if err != nil {
+				fmt.Printf("error inserting multiple into weaviate: %w", err)
+			}
+		}(&waitGroup)
+		fmt.Printf("Processing batch: %v\n", i/batchSize)
+	}
+	waitGroup.Wait()
+	// err := models.InsertMultipleIntoWeaviate(images, client)
+	// if err != nil {
+	// 	return fmt.Errorf("error inserting multiple into weaviate: %w", err)
+	// }
+	fmt.Println("Inserted multiple into weaviate")
+	return nil
 }

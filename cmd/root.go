@@ -1,9 +1,10 @@
 package cmd
 
 import (
-	"github.com/agentx3/gofindim/data"
 	"fmt"
 	"os"
+
+	"github.com/agentx3/gofindim/data"
 
 	"github.com/spf13/cobra"
 )
@@ -19,8 +20,8 @@ var (
 	debugOption     string
 	imagesToCompare []string
 	RootCmd         = &cobra.Command{
-		Use:   "main",
-		Short: "Download a gallery",
+		Use:   "gofindim",
+		Short: "Find similar images",
 		Args:  cobra.NoArgs,
 		RunE:  Execute,
 	}

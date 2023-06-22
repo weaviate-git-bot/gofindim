@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/http"
@@ -14,84 +15,82 @@ import (
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 )
 
-type myForm struct {
-	DeleteImages []string `form:"delete_images[]"`
-}
-
 var fieldsToFetch = []string{"path", "name", "id"}
 
-func SimilarApiHandler(c *gin.Context) {
-	weaviateClient := c.MustGet("weaviateClient").(*weaviate.Client)
+func SimilarHandler(w http.ResponseWriter, r *http.Request) {
+	weaviateClient := r.Context().Value("weaviateClient").(*weaviate.Client)
 	var (
 		results *[]data.ImageNode
 		err     error
 	)
 	results = &[]data.ImageNode{}
 	if weaviateClient == nil {
-		c.JSON(500, gin.H{
-			"error": "Weaviate client not found in context",
-		})
+		http.Error(w, "Weaviate client not found", http.StatusInternalServerError)
 		return
 	}
-	if c.Request.Method == "POST" {
-		results, err = similiarApiPostHandler(c)
+	if r.Method == "POST" {
+		results, err = similiarPostHandler(w, r)
 		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-	} else if c.Request.Method == "GET" {
-		results, err = similarGetHandler(c)
+	} else if r.Method == "GET" {
+		results, err = similarGetHandler(w, r)
 		if err != nil {
-			c.AbortWithStatus(http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 	} else {
-		c.JSON(404, gin.H{
-			"error": "Method not allowed",
-		})
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-	c.JSON(200, gin.H{
-		"images": results,
-	})
+	http.Header.Add(w.Header(), "content-type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"images": results})
+	http.StatusText(http.StatusOK)
+
+	// c.JSON(200, gin.H{
+	// 	"images": results,
+	// })
+
 }
 
-func similiarApiPostHandler(c *gin.Context) (*[]data.ImageNode, error) {
+func similiarPostHandler(w http.ResponseWriter, r *http.Request) (*[]data.ImageNode, error) {
 	var (
 		err     error
 		results *[]data.ImageNode
 	)
-	weaviateClient := c.MustGet("weaviateClient").(*weaviate.Client)
+	weaviateClient := r.Context().Value("weaviateClient").(*weaviate.Client)
 	// Retrieve the text input
-	distance, err := utils.StringToFloat32(c.PostForm("distance"))
+	distance, err := utils.StringToFloat32(r.PostFormValue("distance"))
 	if err != nil {
+		fmt.Println("Error parsing distance")
 		return nil, err
 	}
 
-	text_input := c.PostForm("text_input")
+	text_input := r.PostFormValue("text_input")
 
-	text_weight, err := utils.StringToFloat32(c.PostForm("text_weight"))
+	text_weight, err := utils.StringToFloat32(r.PostFormValue("text_weight"))
 	if err != nil {
 		text_weight = 0.5
 	}
-	image_weight, err := utils.StringToFloat32(c.PostForm("image_weight"))
+	image_weight, err := utils.StringToFloat32(r.PostFormValue("image_weight"))
 	if err != nil {
 		image_weight = 0.5
 	}
-	limitStr := c.PostForm("limit")
+	limitStr := r.PostFormValue("limit")
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil {
 		return nil, err
 	}
 	limit = int(math.Max(float64(1), float64(limit)))
 
-	var fakeform myForm
-	c.ShouldBind(&fakeform)
-	if textInput := c.PostForm("text_input"); textInput != "" {
-		if path := c.PostForm("path"); path != "" {
+	if textInput := r.PostFormValue("text_input"); textInput != "" {
+		if path := r.PostFormValue("path"); path != "" {
 			image, err := data.NewImageFileFromPath(path)
 			if err != nil {
+				fmt.Println("Error parsing image")
 				return nil, err
 			}
 			results, err := data.SearchWeaviateWithTextAndImage(text_input,
@@ -113,7 +112,7 @@ func similiarApiPostHandler(c *gin.Context) (*[]data.ImageNode, error) {
 			imageName := path.Base(textInput)
 			imageFile, err := data.NewImageFileFromURL(textInput, imageName)
 			if err != nil {
-				c.AbortWithError(http.StatusInternalServerError, err)
+				w.WriteHeader(http.StatusInternalServerError)
 			}
 			results, err = data.SearchWeaviateWithImageFile(
 				imageFile,
@@ -123,7 +122,7 @@ func similiarApiPostHandler(c *gin.Context) (*[]data.ImageNode, error) {
 				weaviateClient,
 			)
 			if err != nil {
-				c.AbortWithError(http.StatusInternalServerError, err)
+				w.WriteHeader(http.StatusInternalServerError)
 			}
 		} else {
 			fmt.Printf("Searching with text %s", textInput)
@@ -135,51 +134,52 @@ func similiarApiPostHandler(c *gin.Context) (*[]data.ImageNode, error) {
 				weaviateClient,
 			)
 			if err != nil {
-				c.AbortWithError(http.StatusInternalServerError, err)
+				w.WriteHeader(http.StatusInternalServerError)
 			}
 		}
 
-	} else if file, err := c.FormFile("file_input"); err == nil {
+	} else if _, header, err := r.FormFile("file_input"); err == nil {
 		// Retrieve the file from the form data
-		results, err = data.SearchWeaviateWithFormFile(file, distance, limit, fieldsToFetch, weaviateClient)
+		results, err = data.SearchWeaviateWithFormFile(header, distance, limit, fieldsToFetch, weaviateClient)
 		if err != nil {
-			c.AbortWithError(http.StatusBadRequest, err)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
 
 	} else {
-		c.AbortWithError(http.StatusBadRequest, err)
+		w.WriteHeader(http.StatusBadRequest)
 	} // Return a response
 	return results, err
 }
 
-func similarGetHandler(c *gin.Context) (*[]data.ImageNode, error) {
-	path := c.Query("path")
-	text_input := c.Query("text_input")
+func similarGetHandler(w http.ResponseWriter, r *http.Request) (*[]data.ImageNode, error) {
+	path := r.URL.Query().Get("path")
+	text_input := r.URL.Query().Get("text_input")
 
-	text_weight, err := utils.StringToFloat32(c.Query("text_weight"))
+	text_weight, err := utils.StringToFloat32(r.URL.Query().Get("text_weight"))
 	if err != nil {
 		text_weight = 0.5
 	}
 
-	image_weight, err := utils.StringToFloat32(c.Query("image_weight"))
+	image_weight, err := utils.StringToFloat32(r.URL.Query().Get("image_weight"))
 	if err != nil {
 		image_weight = 0.5
 	}
 
-	distance, err := utils.StringToFloat32(c.Query("distance"))
+	distance, err := utils.StringToFloat32(r.URL.Query().Get("distance"))
 	if err != nil {
 		distance = 0.8
 	}
 
-	limit, err := strconv.Atoi(c.Query("limit"))
+	limit, err := strconv.Atoi(r.URL.Query().Get("limit"))
 	if err != nil {
 		limit = 10
 	}
 
-	weaviateClient := c.MustGet("weaviateClient").(*weaviate.Client)
+	weaviateClient := r.Context().Value("weaviateClient").(*weaviate.Client)
 	if path != "" && text_input != "" {
 		image, err := data.NewImageFileFromPath(path)
 		if err != nil {
+			fmt.Println("Error parsing image")
 			return nil, err
 		}
 		results, err := data.SearchWeaviateWithTextAndImage(text_input,
@@ -192,6 +192,7 @@ func similarGetHandler(c *gin.Context) (*[]data.ImageNode, error) {
 			weaviateClient,
 		)
 		if err != nil {
+			fmt.Println("Error searching weaviate")
 			return nil, err
 		}
 		println("Found results for text and image")
