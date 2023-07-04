@@ -125,25 +125,54 @@ func SearchWeaviateWithFormFile(file *multipart.FileHeader, distance float32, li
 }
 
 func SearchWeaviateWithUUID(id string, distance float32, limit int, fields []string, client *weaviate.Client) (*[]ImageNode, error) {
-	// Open the file
-	response, err := client.Data().
-		ObjectsGetter().
+	qb := NewQueryBuilder(client)
+	fmt.Printf("Searching for %s\n", fields)
+	nearObject := client.GraphQL().NearObjectArgBuilder().WithID(id).WithDistance(distance)
+	response, err := qb.
+		SelectFields(fields).
+		WithNearObject(nearObject).
 		WithClassName("Image").
-		WithID(id).
+		WithLimit(limit).
 		Do(context.Background())
+	// Check error and handle response
 	if err != nil {
 		return nil, err
 	}
-	if len(response) == 0 {
-		return nil, fmt.Errorf("No object with id %s found", id)
-	}
-	result := *response[0]
-	results, err := SearchWeaviateWithVector(result.Vector, distance, limit, fields, client)
-	// results, err := ParseImageData(response, fields)
+	results, err := ParseImageData(response.Data, fields)
 	if err != nil {
+		fmt.Printf("Error parsing image data: %s\n", err)
 		return nil, err
 	}
-	return results, nil
+	return &results, nil
+	// Open the file
+	// response, err := client.Data().
+	// 	ObjectsGetter().
+	// 	WithClassName("Image").
+	// 	WithID(id).
+	// 	Do(context.Background())
+	// if err != nil {
+	// 	fmt.Printf("Error getting object with id %s: %s\n", id, err)
+	// 	return nil, err
+	// }
+	// if len(response) == 0 {
+	// 	return nil, fmt.Errorf("No object with id %s found", id)
+	// }
+	// result := *response[0]
+	// if vector, ok := result.Properties.(map[string]interface{})["embedding"].([]float32); !ok {
+	// 	fmt.Printf("%v\n", result.Properties.(map[string]interface{})["embedding"])
+	// 	fmt.Printf("Got %T instead of []float32\n", result.Properties.(map[string]interface{})["embedding"])
+	// 	return nil, fmt.Errorf("No vector found for object with id %s", id)
+	// } else {
+
+	// 	results, err := SearchWeaviateWithVector(vector, distance, limit, fields, client)
+	// 	// results, err := ParseImageData(response, fields)
+	// 	if err != nil {
+	// 		fmt.Printf("Error parsing image data: %s\n", err)
+	// 		return nil, err
+	// 	}
+	// 	return results, nil
+	// }
+
 }
 
 func SearchWeaviateWithTextAndImage(text string, image *ImageFile, textWeight, imageWeight, distance float32, limit int, fields []string, client *weaviate.Client) (*[]ImageNode, error) {
@@ -170,4 +199,54 @@ func SearchWeaviateWithTextAndImage(text string, image *ImageFile, textWeight, i
 		return nil, err
 	}
 	return &results, nil
+}
+
+func SearchWeaviateWithTextAndUUID(text, id string, textWeight, imageWeight, distance float32, limit int, fields []string, client *weaviate.Client) (*[]ImageNode, error) {
+	qb := NewQueryBuilder(client)
+	fmt.Printf("Searching for %s\n", fields)
+	textVec, err := VectorizeText(text)
+	imgVec, err := VectorFromUUID(id, client)
+	if err != nil {
+		return nil, err
+	}
+	combinedVec := utils.AverageVectors(textVec, imgVec, textWeight, imageWeight)
+	response, err := qb.
+		NearVector(combinedVec, distance).
+		SelectFields(fields).
+		WithClassName("Image").
+		WithLimit(limit).
+		Do(context.Background())
+	// Check error and handle response
+	if err != nil {
+		return nil, err
+	}
+	results, err := ParseImageData(response.Data, fields)
+	if err != nil {
+		fmt.Printf("Error parsing image data: %s\n", err)
+		return nil, err
+	}
+	return &results, nil
+	// qb := NewQueryBuilder(client)
+	// fmt.Printf("Searching for %s\n", fields)
+	// textVec, imgVec, err := VectorizeTextAndImage(text, image)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// combinedVec := utils.AverageVectors(textVec, imgVec, textWeight, imageWeight)
+
+	// response, err := qb.
+	// 	NearVector(combinedVec, distance).
+	// 	SelectFields(fields).
+	// 	WithClassName("Image").
+	// 	WithLimit(limit).
+	// 	Do(context.Background())
+	// // Check error and handle response
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// results, err := ParseImageData(response.Data, fields)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return &results, nil
 }

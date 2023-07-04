@@ -11,7 +11,6 @@ import (
 
 	"github.com/agentx3/gofindim/data"
 	"github.com/agentx3/gofindim/utils"
-	"github.com/gin-gonic/gin"
 	"github.com/weaviate/weaviate-go-client/v4/weaviate"
 )
 
@@ -175,14 +174,33 @@ func similarGetHandler(w http.ResponseWriter, r *http.Request) (*[]data.ImageNod
 		limit = 10
 	}
 
+	uuid := r.URL.Query().Get("uuid")
 	weaviateClient := r.Context().Value("weaviateClient").(*weaviate.Client)
-	if path != "" && text_input != "" {
+	if uuid != "" {
+
+		if text_input != "" {
+			results, err := similarUUIDWithTextHandler(text_input, uuid, text_weight, image_weight, distance, limit, weaviateClient)
+			if err != nil {
+				return nil, err
+			}
+			return results, nil
+		}
+
+		results, err := similarUUIDHandler(uuid, distance, limit, weaviateClient)
+		if err != nil {
+			return nil, err
+		}
+		return results, nil
+
+	} else if path != "" && text_input != "" {
+
 		image, err := data.NewImageFileFromPath(path)
 		if err != nil {
 			fmt.Println("Error parsing image")
 			return nil, err
 		}
-		results, err := data.SearchWeaviateWithTextAndImage(text_input,
+		results, err := data.SearchWeaviateWithTextAndImage(
+			text_input,
 			image,
 			text_weight,
 			image_weight,
@@ -191,16 +209,18 @@ func similarGetHandler(w http.ResponseWriter, r *http.Request) (*[]data.ImageNod
 			fieldsToFetch,
 			weaviateClient,
 		)
+
 		if err != nil {
 			fmt.Println("Error searching weaviate")
 			return nil, err
 		}
-		println("Found results for text and image")
+
 		return results, nil
 
 	} else if path != "" {
 		results, err := similarPathHandler(path, distance, limit, weaviateClient)
 		if err != nil {
+			fmt.Println("Error searching weaviate for similar images using only path", err)
 			return nil, err
 		}
 		return results, nil
@@ -223,7 +243,7 @@ func similarPathHandler(
 
 }
 
-func similarUUIDHandler(c *gin.Context,
+func similarUUIDHandler(
 	uuid string,
 	distance float32,
 	limit int,
@@ -235,5 +255,29 @@ func similarUUIDHandler(c *gin.Context,
 		return nil, err
 	}
 	return results, nil
+
+}
+
+func similarUUIDWithTextHandler(
+	text_input,
+	uuid string,
+	text_weight,
+	image_weight,
+	distance float32,
+	limit int,
+	weaviateClient *weaviate.Client,
+) (*[]data.ImageNode, error) {
+
+	results, err := data.SearchWeaviateWithTextAndUUID(
+		text_input,
+		uuid,
+		text_weight,
+		image_weight,
+		distance,
+		limit,
+		fieldsToFetch,
+		weaviateClient,
+	)
+	return results, err
 
 }

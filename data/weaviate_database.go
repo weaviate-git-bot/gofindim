@@ -88,11 +88,8 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 	return err
 }
 
-func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error {
+func InsertMultipleIntoWeaviate(img []ImageFile, client *weaviate.Client) error {
 	var err error
-	// imgUid := generateUID()
-	// fmt.Println("imgUid: ", imgUid)
-
 	var objects = make([]*models.Object, 0, len(img))
 	for _, image := range img {
 		vector, err := image.ToVector()
@@ -107,9 +104,9 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 			Class: "Image",
 			ID:    strfmt.UUID(uuid),
 			Properties: map[string]interface{}{
-				"name":      image.Name,
-				"path":      image.Path,
-				"embedding": vector,
+				"name": image.Name,
+				"path": image.Path,
+				// "embedding": vector,
 			},
 			Vector: vector,
 		}
@@ -119,12 +116,11 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 			WithProperties(image.toInterface()).
 			Do(context.Background())
 		if err != nil {
-			fmt.Printf("Couldn't valid image during insertion of %v : %v", image.Path, err)
+			fmt.Printf("Couldn't validate image during insertion of %v : %v", image.Path, err)
 			continue
 		}
 		objects = append(objects, &object)
 	}
-	println("objects: ", len(objects))
 	_, err = client.Batch().
 		ObjectsBatcher().
 		WithObjects(objects...).
@@ -132,7 +128,7 @@ func InsertMultipleIntoWeaviate(img []*ImageFile, client *weaviate.Client) error
 	if err != nil {
 		return fmt.Errorf("error inserting batch: %v", err)
 	}
-	fmt.Printf("Created \n")
+	fmt.Printf("Created %v\n objects.", len(objects))
 	return err
 }
 
@@ -162,7 +158,7 @@ func InsertDirectoryIntoWeaviate(path string, client *weaviate.Client) error {
 
 	for i := 0; i < len(imagePaths); i += batchSize {
 		end := i + batchSize
-		imageBatch := []*ImageFile{}
+		imageBatch := []ImageFile{}
 		if end > len(imagePaths) {
 			end = len(imagePaths)
 		}
@@ -173,14 +169,14 @@ func InsertDirectoryIntoWeaviate(path string, client *weaviate.Client) error {
 				fmt.Printf("error creating image file from path %v: %v", img, err)
 				continue
 			}
-			imageBatch = append(imageBatch, imageFile)
+			imageBatch = append(imageBatch, *imageFile)
 		}
 		waitGroup.Add(1)
 		go func(wg *sync.WaitGroup) {
 			defer wg.Done()
 			err = InsertMultipleIntoWeaviate(imageBatch, client)
 			if err != nil {
-				fmt.Printf("error inserting multiple into weaviate: %w", err)
+				fmt.Printf("error inserting multiple into weaviate: %v", err)
 			}
 		}(&waitGroup)
 		fmt.Printf("Processing batch: %v\n", i/batchSize)
@@ -192,4 +188,37 @@ func InsertDirectoryIntoWeaviate(path string, client *weaviate.Client) error {
 	// }
 	fmt.Println("Inserted multiple into weaviate")
 	return nil
+}
+
+func VectorFromUUID(id string, client *weaviate.Client) ([]float32, error) {
+
+	// Open the file
+	response, err := client.Data().
+		ObjectsGetter().
+		WithVector().
+		WithClassName("Image").
+		WithID(id).
+		Do(context.Background())
+	if err != nil {
+		fmt.Printf("Error getting object with id %s: %s\n", id, err)
+		return nil, err
+	}
+	if len(response) == 0 {
+		return nil, fmt.Errorf("No object with id %s found", id)
+	}
+	result := *response[0]
+	return result.Vector, nil
+
+	// embeddingInterfaces := result.Properties.(map[string]interface{})["embedding"].([]interface{})
+	// embeddingValues := make([]float32, len(embeddingInterfaces))
+
+	// for i, val := range embeddingInterfaces {
+	// 	floatVal, ok := val.(float64)
+	// 	if !ok {
+	// 		fmt.Println("Error converting to float32")
+	// 		break
+	// 	}
+	// 	embeddingValues[i] = float32(floatVal)
+	// }
+
 }

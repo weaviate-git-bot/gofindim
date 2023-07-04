@@ -16,20 +16,17 @@ var ImageClass = &models.Class{
 		},
 	},
 	Properties: []*models.Property{
-		&models.Property{
-			Name:     "name",
+		{Name: "name",
 			DataType: []string{"text"},
 		},
-		&models.Property{
-			Name:        "path",
+		{Name: "path",
 			Description: "Path to the image file",
 			DataType:    []string{"text"},
 		},
-		&models.Property{
-			Name:        "embedding",
-			Description: "The image itself. This is a base64 encoded image.",
-			DataType:    []string{"number[]"},
-		},
+		// {Name: "embedding",
+		// 	Description: "The image itself. This is a base64 encoded image.",
+		// 	DataType:    []string{"number[]"},
+		// },
 		// &models.Property{
 		// 	Name:     "imageData",
 		// 	Description: "The metadata of the image.",

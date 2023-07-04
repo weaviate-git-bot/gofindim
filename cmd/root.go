@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/agentx3/gofindim/data"
-
 	"github.com/spf13/cobra"
 )
 
@@ -31,23 +29,6 @@ func Execute(cmd *cobra.Command, args []string) error {
 
 	if initialize {
 	}
-	if len(imagesToCompare) == 2 {
-		img1, err := data.NewImageFileFromPath(imagesToCompare[0])
-		if err != nil {
-			return err
-		}
-		img2, err := data.NewImageFileFromPath(imagesToCompare[1])
-		if err != nil {
-			return err
-		}
-		distance, err := data.CompareImageOrb(img1, img2)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Distance between %v and %v is %v\n", img1.Name, img2.Name, distance)
-		return nil
-	}
-	fmt.Printf("Ending execution\n")
 	return nil
 }
 

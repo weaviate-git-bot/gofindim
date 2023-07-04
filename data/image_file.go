@@ -5,6 +5,9 @@ import (
 	"encoding/base64"
 	"fmt"
 	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"io/ioutil"
 	"log"
@@ -34,14 +37,15 @@ func (m *ImageFile) ToWeaviateImageData() map[string]interface{} {
 }
 
 func (i *ImageFile) toInterface() map[string]interface{} {
-	vector, err := i.ToVector()
+	var err error
+	// vector, err := i.ToVector()
 	if err != nil {
 		log.Println("Error converting vector during conversion to interface")
 	}
 	return map[string]interface{}{
-		"name":      i.Name,
-		"path":      i.Path,
-		"embedding": vector,
+		"name": i.Name,
+		"path": i.Path,
+		// "embedding": vector,
 	}
 
 }
