@@ -1,0 +1,34 @@
+import ReactDOM from 'react-dom/client'
+import App from './components/App'
+import { Fragment, StrictMode } from 'react'
+import {ThemeProvider} from '@emotion/react'
+import GlobalStyles from 'styles/GlobalStyles'
+const root = ReactDOM.createRoot(document.getElementById('root') as HTMLElement)
+
+const theme = {
+  colors: {
+    primary: 'hotpink'
+  }
+}
+
+const rootElement = document.getElementById('root')
+'dark' === localStorage.theme || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)
+  ? rootElement?.classList.add('dark')
+  : rootElement?.classList.remove('dark')
+
+
+root.render(
+    <Fragment>
+    <GlobalStyles/>
+    <ThemeProvider theme={theme}>
+    <App />
+    </ThemeProvider>
+    </Fragment>
+
+)
+
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+
