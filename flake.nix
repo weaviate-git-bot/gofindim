@@ -25,6 +25,8 @@
                 {
                   # https://devenv.sh/reference/options/
                   packages = with unstablePkgs;[
+                    nodejs-18_x
+                    yarn
                     go
                     gnumake
                     stdenv.cc
