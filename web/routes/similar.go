@@ -41,6 +41,15 @@ func SimilarHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+	} else if r.Method == "DELETE" {
+		succeededUUIDs, err := similarDeleteHandler(w, r)
+		json.NewEncoder(w).Encode(map[string]interface{}{"deleted_images": succeededUUIDs})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		} else {
+			http.StatusText(http.StatusOK)
+		}
+		return
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -280,4 +289,26 @@ func similarUUIDWithTextHandler(
 	)
 	return results, err
 
+}
+
+func similarDeleteHandler(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+	r.ParseMultipartForm(32 << 20)
+	uuids := r.PostForm["delete_images[]"]
+	paths := r.PostForm["delete_images_path[]"]
+	var err error
+	succeededUUIDs := []string{}
+	weaviateClient := r.Context().Value("weaviateClient").(*weaviate.Client)
+	fmt.Println("Deleting images with uuids", uuids)
+	if len(uuids) > 0 {
+		for i, uuid := range uuids {
+			_err := data.DeleteWeaviateWithUUID(r.Context(), weaviateClient, uuid, paths[i])
+			if _err != nil {
+				err = _err
+				fmt.Println("Error deleting image with uuid", uuid, err)
+			} else {
+				succeededUUIDs = append(succeededUUIDs, uuid)
+			}
+		}
+	}
+	return succeededUUIDs, err
 }

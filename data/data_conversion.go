@@ -10,6 +10,7 @@ import (
 
 // Hash a file to get its UUID
 func FileToUUID(path string) (string, error) {
+	// This is necessary because weaviate uses UUIDs to index objects
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err

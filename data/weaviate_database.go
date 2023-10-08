@@ -64,6 +64,7 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 
 	vector, err := img.ToVector()
 	if err != nil {
+		fmt.Println("Error converting image to vector: ", err)
 		return err
 	}
 
@@ -73,7 +74,8 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 		WithProperties(img.toInterface()).
 		Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("Couldn't valid image during insertion.", err)
+		fmt.Println("Error validating image: ", err)
+		return fmt.Errorf("Couldn't valid image during insertion. %v", err)
 	}
 	_, err = client.Data().Creator().
 		WithClassName("Image").
@@ -82,7 +84,8 @@ func InsertIntoWeaviate(img *ImageFile, client *weaviate.Client) error {
 		WithVector(vector).
 		Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("Couldn't insert image into database.", err)
+		fmt.Println("Error creating image: ", err)
+		return fmt.Errorf("Couldn't insert image into database. %v", err)
 	}
 	fmt.Printf("Created \n")
 	return err

@@ -25,12 +25,7 @@ func BrowseApiHandler(w http.ResponseWriter, r *http.Request) {
 		if path == "" {
 			path = "/"
 		}
-		// path, err := url.(path)
-		// if err != nil {
-		// 	fmt.Println("Trying to access,"path)
-		// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-		// 	return
-		// }
+
 		hiddenStr := r.URL.Query().Get("hidden")
 		if hiddenStr == "true" {
 			hidden = true
