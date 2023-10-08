@@ -16,12 +16,14 @@ module.exports = {
   resolve: {
     extensions: [".tsx", ".ts", ".js", ".json"],
     modules: [path.resolve(__dirname, "src"), "node_modules"],
+    alias: {
+      "@": path.resolve(__dirname, "src"),
+    },
   },
   output: {
     filename: "bundle.js",
     path: path.resolve(__dirname, "dist"),
-    publicPath: '', // The publicPath is set to an empty string
-
+    publicPath: "", // The publicPath is set to an empty string
   },
   target: "web",
   devServer: {
@@ -40,7 +42,7 @@ module.exports = {
       "process.env": JSON.stringify(process.env),
     }),
     new webpack.ProvidePlugin({
-      "config": path.join(__dirname, "src", "config.ts"),
+      config: path.join(__dirname, "src", "config.ts"),
     }),
   ],
 };
